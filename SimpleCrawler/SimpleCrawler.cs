@@ -32,6 +32,7 @@ namespace SimpleCrawler
 
                     //
                     var watch = new Stopwatch();
+                    watch.Start();
 
                     var request = (HttpWebRequest)WebRequest.Create(uri);
                     request.Accept = "*/*";
