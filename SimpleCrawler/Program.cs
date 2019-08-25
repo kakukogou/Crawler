@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
 
+using Newtonsoft.Json;
+
 namespace SimpleCrawler
 {
     public class City
@@ -32,7 +34,7 @@ namespace SimpleCrawler
 
         private static void CrawlAll()
         {
-            var startMonth = new DateTime(2019, 1, 1);
+            var startMonth = new DateTime(2010, 1, 1);
             var today = DateTime.Today;
             var endMonth = new DateTime(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
 
@@ -64,16 +66,27 @@ namespace SimpleCrawler
 
             crawler.OnCompleted += (s, e) =>
             {
-                var links = new Parsers.MonthlyRevenueParser().Parse(e.PageSource).ToList();
+                // Get year month.
+                var tokens = e.Uri.ToString().Split(new char[] { '/', '_', '.' });
+                var year = int.Parse(tokens[10]);
+                var month = int.Parse(tokens[11]);
+
+                // Parse.
+                var links = new Parsers.MonthlyRevenueParser().Parse(year, month, e.PageSource).ToList();
                 Console.WriteLine("===============================================");
                 Console.WriteLine("爬虫抓取任务完成！合计 " + links.Count + " 个城市。");
                 Console.WriteLine("耗时：" + e.Milliseconds + "毫秒");
                 Console.WriteLine("线程：" + e.ThreadId);
                 Console.WriteLine("地址：" + e.Uri.ToString());
+
+                // Write to file.
+                var text = JsonConvert.SerializeObject(links);
+                
+                var filePath = $@"/Users/kakukogou/Projects/MonthlyRevenueData/{year}_{month}.txt";
+                System.IO.File.WriteAllText(filePath, text);
             };
 
             crawler.Start(new Uri(url)).Wait();
-
         }
 
         public static void CityCrawler()
