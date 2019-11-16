@@ -38,7 +38,8 @@ namespace SimpleCrawler.Parsers
                 var industryTablesXPath = "/html[1]/body[1]/center[1]/center[1]/table[1]/tr[1]/td[1]/table";
                 return GetHtmlNodesThenDoFunc(htmlString, industryTablesXPath, htmlNodeCollection =>
                 {
-                    return htmlNodeCollection.ToList().SelectMany(industryTable => ParseSingleIndustry(year, month, industryTable));
+                    var industryRows = htmlNodeCollection.ToList().SkipLast(1).ToList();
+                    return industryRows.SelectMany(industryTable => ParseSingleIndustry(year, month, industryTable));
                 });
             }
         }
@@ -71,7 +72,6 @@ namespace SimpleCrawler.Parsers
             return GetHtmlNodesThenDoFunc(htmlNode.InnerHtml, companyItemsXPath, htmlNodeCollection =>
             {
                 var items = htmlNodeCollection.ToList().Select(node => node.InnerHtml.Trim()).ToList();
-
                 return new MonthlyRevenueData()
                 {
                     stockId = items[0],
