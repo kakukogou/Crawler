@@ -4,7 +4,11 @@ using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
 
+using Azure;
+using Azure.Data.Tables;
 using Newtonsoft.Json;
+using Microsoft.Extensions.Configuration;
+using System.IO;
 
 namespace SimpleCrawler
 {
@@ -18,9 +22,12 @@ namespace SimpleCrawler
 
     class Program
     {
+        private static TableClient tableClient;
+
         static void Main(string[] args)
         {
             RegisterBig5Encoding();
+            LoadAzureStoreAccount();
             CrawlAll();
         }
 
@@ -80,10 +87,29 @@ namespace SimpleCrawler
                 Console.WriteLine("地址：" + e.Uri.ToString());
 
                 // Write to file.
-                var text = JsonConvert.SerializeObject(links);
-                
-                var filePath = $@"/Users/kakukogou/Projects/MonthlyRevenueData/{year}_{month}.txt";
-                System.IO.File.WriteAllText(filePath, text);
+                //var text = JsonConvert.SerializeObject(links);
+
+                //var filePath = $@"/Users/kakukogou/Projects/MonthlyRevenueData/{year}_{month}.txt";
+                //var filePath = $@"D:\GitHub\Crawler\TempData\MonthlyRevenueData\{year}_{month}.txt";
+                //System.IO.File.WriteAllText(filePath, text);
+
+                // Write to Azure Table.
+                links.ForEach(link =>
+                {
+                    TableEntity entity = new TableEntity();
+                    entity.PartitionKey = link.StockId;
+                    entity.RowKey = $"{link.ReportYear}_{link.ReportMonth}";
+                    entity["ThisMonthRevenue"] = link.ThisMonthRevenue;
+                    entity["LastMonthRevenue"] = link.LastMonthRevenue;
+                    entity["LastYearSameMonthRevenue"] = link.LastYearSameMonthRevenue;
+                    entity["DeltaToLastMonth"] = link.DeltaToLastMonth;
+                    entity["DeltaToLastYearSameMonth"] = link.DeltaToLastYearSameMonth;
+                    entity["ThisYearAggregatedRevenue"] = link.ThisYearAggregatedRevenue;
+                    entity["LastYearAggregatedRevenue"] = link.LastYearAggregatedRevenue;
+                    entity["DeltaToLastYearAggregatedRevenue"] = link.DeltaToLastYearAggregatedRevenue;
+
+                    tableClient.UpsertEntity(entity);
+                });
             };
 
             crawler.Start(new Uri(url)).Wait();
@@ -125,6 +151,20 @@ namespace SimpleCrawler
                 Console.WriteLine("地址：" + e.Uri.ToString());
             };
             cityCrawler.Start(new Uri(cityUrl)).Wait();//没被封锁就别使用代理：60.221.50.118:8090
+        }
+
+        private static void LoadAzureStoreAccount()
+        {
+            var builder = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json");
+
+            var configuration = builder.Build();
+
+            var connectionString = configuration.GetConnectionString("StorageAccount");
+
+            String tableName = "MonthlyRevenue";
+            tableClient = new TableClient(connectionString, tableName);
         }
     }
 }

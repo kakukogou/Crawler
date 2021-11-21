@@ -3,6 +3,7 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Globalization;
 using HtmlAgilityPack;
+using SimpleCrawler.Models;
 
 namespace SimpleCrawler.Parsers
 {
@@ -15,7 +16,7 @@ namespace SimpleCrawler.Parsers
             return func(doc.DocumentNode.SelectNodes(xPath));
         }
 
-        public IEnumerable<MonthlyRevenueData> Parse(int year, int month, string htmlString)
+        public IEnumerable<MonthlyRevenueModel> Parse(int year, int month, string htmlString)
         {
             if (year <= 100)
             {
@@ -44,8 +45,10 @@ namespace SimpleCrawler.Parsers
             }
         }
 
-        private IEnumerable<MonthlyRevenueData> ParseSingleIndustry(int year, int month, HtmlNode htmlNode)
+        private IEnumerable<MonthlyRevenueModel> ParseSingleIndustry(int year, int month, HtmlNode htmlNode)
         {
+            var industryName = ParsetIndustryName(htmlNode);
+
             var singleCompanyXPath = string.Empty;
             if (year == 102 && month == 1)
             {
@@ -61,29 +64,39 @@ namespace SimpleCrawler.Parsers
                 var companyRows = htmlNodeCollection.ToList().Skip(2).ToList();
                 companyRows.RemoveAt(companyRows.Count - 1);
 
-                return companyRows.Select(companyRow => ParseSingleCompany(companyRow));
+                return companyRows.Select(companyRow => ParseSingleCompany(year, month, industryName, companyRow));
             });
         }
 
-        private MonthlyRevenueData ParseSingleCompany(HtmlNode htmlNode)
+        private String ParsetIndustryName(HtmlNode htmlNode)
         {
+            var industryNameXPath = "./tr[1]/th[1]";
+            return GetHtmlNodesThenDoFunc(htmlNode.InnerHtml, industryNameXPath, htmlNodeCollection =>
+            {
+                return htmlNodeCollection.Single().InnerText.Split(":").Last();
+            });
+        }
 
+        private MonthlyRevenueModel ParseSingleCompany(int year, int month, String industryName, HtmlNode htmlNode)
+        {
             var companyItemsXPath = "./td";
             return GetHtmlNodesThenDoFunc(htmlNode.InnerHtml, companyItemsXPath, htmlNodeCollection =>
             {
                 var items = htmlNodeCollection.ToList().Select(node => node.InnerHtml.Trim()).ToList();
-                return new MonthlyRevenueData()
+                return new MonthlyRevenueModel()
                 {
-                    stockId = items[0],
-                    companyName = items[1],
-                    thisMonthRevenue = ParseToLongNullable(items[2]),
-                    lastMonthRevenue = ParseToLongNullable(items[3]),
-                    lastYearSameMonthRevenue = ParseToLongNullable(items[4]),
-                    deltaToLastMonth = ParseToDoubleNullable(items[5]),
-                    deltaToLastYearSameMonth = ParseToDoubleNullable(items[6]),
-                    aggregatedRevenue = ParseToLongNullable(items[7]),
-                    lastYearAggregatedRevenue = ParseToLongNullable(items[8]),
-                    deltaToLastXXX = ParseToDoubleNullable(items[9])
+                    ReportYear = ToCommonEra(year),
+                    ReportMonth = month,
+                    StockId = items[0],
+                    StockName = items[1],
+                    ThisMonthRevenue = ParseToLongNullable(items[2]),
+                    LastMonthRevenue = ParseToLongNullable(items[3]),
+                    LastYearSameMonthRevenue = ParseToLongNullable(items[4]),
+                    DeltaToLastMonth = ParseToDoubleNullable(items[5]),
+                    DeltaToLastYearSameMonth = ParseToDoubleNullable(items[6]),
+                    ThisYearAggregatedRevenue = ParseToLongNullable(items[7]),
+                    LastYearAggregatedRevenue = ParseToLongNullable(items[8]),
+                    DeltaToLastYearAggregatedRevenue = ParseToDoubleNullable(items[9])
                 };
             });
         }
@@ -93,5 +106,6 @@ namespace SimpleCrawler.Parsers
         private static bool IsNonAppliableInChinese(string cellValue) => cellValue.Equals("不適用");
         private static long? ParseToLongNullable(string value) => IsNonDigits(value) ? (long?)null : long.Parse(value, NumberStyles.Integer | NumberStyles.AllowLeadingSign | NumberStyles.AllowThousands);
         private static double? ParseToDoubleNullable(string value) => IsNonDigits(value) ? (double?)null : double.Parse(value, NumberStyles.Float | NumberStyles.AllowLeadingSign | NumberStyles.AllowThousands);
+        private static int ToCommonEra(int year) { return year + 1911; }
     }
 }
